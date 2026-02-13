@@ -2036,22 +2036,43 @@ async def run_monte_carlo_simulation(
 
         logger.info(f"Running {simulation_runs} Monte Carlo simulations")
 
+        # Calculate change magnitude from actual changes
+        change_magnitude = 1.0
+        for key, val in changes.items():
+            if isinstance(val, dict) and "before" in val and "after" in val:
+                try:
+                    before = float(val["before"])
+                    after = float(val["after"])
+                    if before > 0:
+                        ratio = abs(after - before) / before
+                        change_magnitude = max(change_magnitude, ratio)
+                except (ValueError, TypeError):
+                    pass
+
+        # Scale base impacts by scenario type
+        scenario_impacts = {
+            "resource_limits": {"perf": 0.15, "reliability": 0.1, "cost": 0.05},
+            "scaling": {"perf": 0.05, "reliability": 0.03, "cost": 0.3},
+            "configuration": {"perf": 0.1, "reliability": 0.15, "cost": 0.02},
+            "deployment": {"perf": 0.08, "reliability": 0.12, "cost": 0.1}
+        }
+        base = scenario_impacts.get(scenario_type, {"perf": 0.1, "reliability": 0.05, "cost": 0.2})
+
         for run in range(simulation_runs):
             # Add randomness to each simulation run
             uncertainty_factor = models.get("resource_consumption", {}).get("uncertainty_factor", 0.1)
             random_factor = random.gauss(1.0, uncertainty_factor)
 
-            # Simulate impacts - simplified placeholder
-            performance_impact = random_factor * 0.1
+            performance_impact = random_factor * base["perf"] * change_magnitude
             results["performance_impact"].append(performance_impact)
 
-            resource_impact = random_factor * 0.15
+            resource_impact = random_factor * 0.15 * change_magnitude
             results["resource_impact"].append(resource_impact)
 
-            reliability_impact = random_factor * 0.05
+            reliability_impact = random_factor * base["reliability"] * change_magnitude
             results["reliability_impact"].append(reliability_impact)
 
-            cost_impact = random_factor * 0.2
+            cost_impact = random_factor * base["cost"] * change_magnitude
             results["cost_impact"].append(cost_impact)
 
         # Calculate statistics for each impact type

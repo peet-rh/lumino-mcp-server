@@ -3578,12 +3578,13 @@ async def detect_log_anomalies(
                     pattern_key = error_pattern_map.get(pattern, "other")
                     error_counts[pattern_key] = error_counts.get(pattern_key, 0) + 1
 
-        error_rate = len(error_lines) / total_lines
+        unique_error_line_indices = set(line[0] for line in error_lines)
+        error_rate = len(unique_error_line_indices) / total_lines
         if error_rate > threshold_config["error_rate"]:
             anomalies.append({
                 "type": "high_error_rate",
                 "severity": "high" if error_rate > 0.3 else "medium",
-                "description": f"High error rate detected: {error_rate:.2%} ({len(error_lines)}/{total_lines} lines)",
+                "description": f"High error rate detected: {error_rate:.2%} ({len(unique_error_line_indices)}/{total_lines} lines)",
                 "details": {
                     "error_rate": error_rate,
                     "error_patterns": error_counts,
@@ -6573,7 +6574,7 @@ async def adaptive_namespace_investigation(
             "total_pods_found": total_pods,
             "pods_analyzed": pods_analyzed,
             "critical_issues_found": len(critical_issues),
-            "token_budget_used": f"{processor.get_usage_percentage():.1f}%",
+            "token_budget_used": f"{min(processor.get_usage_percentage(), 100.0):.1f}%",
             "adaptive_strategy": "volume-based time windowing with progressive pod analysis"
         }
 
@@ -8410,7 +8411,13 @@ async def ci_cd_performance_baselining_tool(
             # Use deviation_threshold to determine significance (default 2.0 = ~5% significance)
             significance_threshold = 10.0 / deviation_threshold  # ~5% change with default threshold
 
-            if abs(duration_change_pct) < significance_threshold and abs(success_change) < significance_threshold:
+            # Check if there is any recent activity before classifying trends
+            has_recent_data = (recent_avg > 0 or recent_success > 0)
+
+            if not has_recent_data:
+                trend = "No recent activity (inactive in last 24h)"
+                trend_direction = "inactive"
+            elif abs(duration_change_pct) < significance_threshold and abs(success_change) < significance_threshold:
                 trend = "Stable performance (no significant trend)"
                 trend_direction = "stable"
             elif duration_change_pct < -significance_threshold or success_change > significance_threshold:
@@ -8465,7 +8472,7 @@ async def ci_cd_performance_baselining_tool(
                     "duration_change_pct": duration_change_pct,
                     "success_rate_change": success_change
                 })
-            elif trend_direction == "stable":
+            elif trend_direction in ("stable", "inactive"):
                 result["performance_trends"]["stable_pipelines"].append({
                     "pipeline": namespace,
                     "trend": trend,
@@ -9083,13 +9090,17 @@ async def _get_fallback_cluster_health() -> Dict[str, Any]:
                         elif pod.status.phase in ['Failed', 'CrashLoopBackOff']:
                             failed_pods += 1
 
-                    health_ratio = running_pods / total_pods if total_pods > 0 else 0
-
-                    status = "available"
-                    if health_ratio < 0.8:
-                        status = "degraded"
-                    elif health_ratio < 0.9:
-                        status = "warning"
+                    if total_pods == 0:
+                        # No pods visible — likely managed cluster with restricted access
+                        health_ratio = 1.0
+                        status = "available"
+                    else:
+                        health_ratio = running_pods / total_pods
+                        status = "available"
+                        if health_ratio < 0.8:
+                            status = "degraded"
+                        elif health_ratio < 0.9:
+                            status = "warning"
 
                     component_health.append({
                         "name": f"system-namespace:{ns_name}",
@@ -10530,8 +10541,12 @@ async def predictive_log_analyzer(
                 "recall": float(max(0.6, accuracy - 0.2))
             })
 
-        # Generate anomaly scores per component
-        components = ["application_pods", "database", "messaging_service", "load_balancer"]
+        # Generate anomaly scores per component — use actual namespace names
+        if target_namespaces:
+            components = target_namespaces[:min(4, len(anomaly_scores))]
+        else:
+            components = [f"component_{i}" for i in range(min(4, len(anomaly_scores)))]
+
         for i, component in enumerate(components):
             if i < len(anomaly_scores):
                 score = float(anomaly_scores[i])
@@ -11340,22 +11355,34 @@ async def resource_bottleneck_forecaster(
                                 'contributing_factors': ['pod_scaling', 'workload_changes']
                             })
 
-                    # Namespace memory usage
-                    memory_query = f'sum(container_memory_working_set_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024'
-                    memory_result = await prometheus_query(memory_query)
-                    if memory_result.get("status") == "success" and memory_result.get("data"):
-                        data = memory_result["data"]
-                        if data and len(data) > 0 and 'value' in data[0]:
-                            memory_usage_gb = float(data[0]['value'][1])
+                    # Namespace memory usage — try primary metric, then fallback
+                    memory_queries = [
+                        f'sum(container_memory_working_set_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024',
+                        f'sum(container_memory_usage_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024'
+                    ]
+                    memory_usage_gb = 0
+                    for memory_query in memory_queries:
+                        memory_result = await prometheus_query(memory_query)
+                        if memory_result.get("status") == "success" and memory_result.get("data"):
+                            data = memory_result["data"]
+                            if data and len(data) > 0:
+                                raw_val = data[0].get('value', [0, '0'])
+                                if isinstance(raw_val, list) and len(raw_val) >= 2:
+                                    memory_usage_gb = float(raw_val[1])
+                                elif isinstance(raw_val, (str, int, float)):
+                                    memory_usage_gb = float(raw_val)
+                                if memory_usage_gb > 0:
+                                    break
 
-                            forecasts.append({
-                                'resource_type': 'namespace_memory',
-                                'resource_identifier': {'namespace': namespace, 'metric': 'memory_usage_gb'},
-                                'current_usage': {'value': memory_usage_gb, 'unit': 'GB'},
-                                'predicted_exhaustion': None,  # Would need trend analysis
-                                'growth_rate': {'value': 0, 'unit': 'GB_per_5min'},
-                                'contributing_factors': ['pod_scaling', 'memory_leaks', 'cache_growth']
-                            })
+                    if memory_usage_gb > 0:
+                        forecasts.append({
+                            'resource_type': 'namespace_memory',
+                            'resource_identifier': {'namespace': namespace, 'metric': 'memory_usage_gb'},
+                            'current_usage': {'value': memory_usage_gb, 'unit': 'GB'},
+                            'predicted_exhaustion': None,  # Would need trend analysis
+                            'growth_rate': {'value': 0, 'unit': 'GB_per_5min'},
+                            'contributing_factors': ['pod_scaling', 'memory_leaks', 'cache_growth']
+                        })
 
                 except Exception as e:
                     logger.warning(f"Could not analyze namespace {namespace}: {str(e)}")

@@ -7,6 +7,7 @@
 # ============================================================================
 
 import time
+import json
 import hashlib
 import asyncio
 import re
@@ -267,6 +268,24 @@ class LogStreamProcessor:
 # LOG PATTERN EXTRACTION FUNCTIONS
 # ============================================================================
 
+def _get_structured_log_level(line: str) -> Optional[str]:
+    """Extract severity from structured JSON logs, returning None for non-JSON."""
+    try:
+        content = line.strip()
+        # Strip leading timestamp if present
+        timestamp_match = re.match(r'^\d{4}-\d{2}-\d{2}T[\d:.]+Z?\s*', content)
+        if timestamp_match:
+            content = content[timestamp_match.end():]
+        if content.startswith('{'):
+            parsed = json.loads(content)
+            level = (parsed.get("level") or parsed.get("severity") or "").lower()
+            if level in ("info", "debug", "warn", "warning", "error", "fatal", "panic"):
+                return level
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        pass
+    return None
+
+
 def extract_log_patterns(log_lines: List[str], focus_areas: List[str], max_patterns_per_area: int = 50, max_content_length: int = 200) -> Dict[str, List[Dict[str, Any]]]:
     """Extract patterns from log lines based on focus areas.
 
@@ -328,12 +347,21 @@ def extract_log_patterns(log_lines: List[str], focus_areas: List[str], max_patte
         ]
     }
 
+    # Areas where structured JSON log level should gate pattern matching
+    _error_sensitive_areas = {"errors", "warnings", "exceptions"}
+
     for line_num, line in enumerate(log_lines, 1):
         timestamp = extract_timestamp(line)
+        structured_level = _get_structured_log_level(line)
 
         for area in focus_areas:
             # Skip if this area already has max patterns
             if len(patterns[area]) >= max_patterns_per_area:
+                continue
+
+            # For error/warning/exception areas, skip lines whose structured
+            # JSON log level is info or debug — the keyword match is a false positive
+            if structured_level in ("info", "debug") and area in _error_sensitive_areas:
                 continue
 
             if area in pattern_regex:
