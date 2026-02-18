@@ -10,20 +10,20 @@
 
     var scenes = [
       {
-        prompt: '$ ',
-        command: 'lumino analyze-failed-pipeline --namespace ci-cd --run build-api-456',
+        prompt: '> ',
+        command: 'Why did pipeline build-api-456 fail in the ci-cd namespace?',
         output: [
           '',
-          '\u2500\u2500\u2500 Root Cause Analysis \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+          '  \u25cf Using analyze_failed_pipeline tool...',
           '',
-          '  Pipeline:    build-api-456',
-          '  Status:      FAILED',
-          '  Duration:    3m 42s',
+          '  The pipeline build-api-456 failed due to an OOMKilled',
+          '  error in the build step \u2014 the container exceeded its',
+          '  512Mi memory limit.',
           '',
-          '  Root Cause:  OOMKilled in build step (container exceeded 512Mi limit)',
-          '  Secondary:   Image pull failed for registry.internal/base:latest (timeout)',
+          '  A secondary issue was an image pull timeout for',
+          '  registry.internal/base:latest.',
           '',
-          '  Suggested Fix:',
+          '  Recommended fixes:',
           '    1. Increase memory limit to 1Gi for build-container',
           '    2. Verify registry connectivity and image tag',
           '    3. Add retry policy for transient pull failures',
@@ -32,47 +32,43 @@
         ]
       },
       {
-        prompt: '$ ',
-        command: 'lumino resource-bottleneck-forecast --namespace production',
+        prompt: '> ',
+        command: 'Are there any resource bottlenecks coming in the production namespace?',
         output: [
           '',
-          '\u2500\u2500\u2500 Resource Forecast (48-72h) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+          '  \u25cf Using resource_bottleneck_forecaster tool...',
           '',
-          '  CPU Usage:     78% projected in 48h  (\u26a0 Warning)',
-          '  Memory Usage:  CRITICAL in 72h       (\u2718 Action Required)',
-          '  Disk I/O:      Stable                (\u2714 OK)',
+          '  Based on current trends, here is the 48\u201372h forecast',
+          '  for the production namespace:',
           '',
-          '  Trend:         +12% CPU / week,  +18% Memory / week',
+          '  CPU:     78% projected in 48h     \u26a0 Warning',
+          '  Memory:  Critical in 72h          \u2718 Action Required',
+          '  Disk:    Stable                   \u2714 OK',
           '',
-          '  Recommendation:',
-          '    1. Scale horizontally: add 2 replicas to api-gateway',
-          '    2. Review memory leaks in payment-service (RSS growing 3%/day)',
-          '    3. Consider HPA policy update: target CPU 60% \u2192 50%',
-          '',
-          '  Confidence: 87%'
+          '  I recommend:',
+          '    1. Scale api-gateway to 4 replicas',
+          '    2. Investigate memory leak in payment-service',
+          '    3. Lower HPA CPU target from 60% to 50%'
         ]
       },
       {
-        prompt: '$ ',
-        command: 'lumino topology-map --namespace microservices',
+        prompt: '> ',
+        command: 'Map the service topology in the microservices namespace',
         output: [
           '',
-          '\u2500\u2500\u2500 Service Topology Map \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+          '  \u25cf Using live_system_topology_mapper tool...',
           '',
-          '  Services discovered:  12',
-          '  Dependency chains:    3 critical paths',
+          '  Discovered 12 services with 3 critical dependency chains.',
           '',
           '  \u26a0 Circular dependency detected:',
           '    order-svc \u2192 inventory-svc \u2192 notification-svc \u2192 order-svc',
           '',
-          '  Longest chain:',
-          '    api-gw \u2192 auth-svc \u2192 user-svc \u2192 db-proxy \u2192 postgres (4 hops)',
+          '  Longest chain (4 hops):',
+          '    api-gw \u2192 auth-svc \u2192 user-svc \u2192 db-proxy \u2192 postgres',
           '',
           '  Single points of failure:',
-          '    - auth-svc (9 dependents, no redundancy)',
-          '    - db-proxy (6 dependents, single replica)',
-          '',
-          '  Confidence: 91%'
+          '    \u2022 auth-svc (9 dependents, no redundancy)',
+          '    \u2022 db-proxy (6 dependents, single replica)'
         ]
       }
     ];
