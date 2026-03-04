@@ -72,6 +72,10 @@ uv run pytest
 
 ## Making Changes
 
+### Branch Protection
+
+The `main` branch is protected. Direct pushes are not allowed. All changes must go through a pull request with at least one approving review. These rules are enforced for all contributors, including admins.
+
 ### Branching Strategy
 
 1. **Create a feature branch** from `main`:
