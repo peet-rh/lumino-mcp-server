@@ -295,6 +295,45 @@ except Exception as e:
     k8s_autoscaling_api = None
 
 
+@mcp.tool()
+async def reload_credentials() -> Dict[str, str]:
+    """
+    Reload Kubernetes credentials from kubeconfig without restarting the MCP server.
+
+    Call this after running 'oc login' to a different cluster so that all
+    subsequent Lumino tool calls use the new credentials and cluster context.
+
+    Returns:
+        Dict with status, current context, and server URL.
+    """
+    global k8s_core_api, k8s_apps_api, k8s_custom_api, k8s_batch_api, k8s_storage_api, k8s_autoscaling_api
+
+    try:
+        config.load_kube_config()
+        k8s_core_api = client.CoreV1Api()
+        k8s_apps_api = client.AppsV1Api()
+        k8s_custom_api = client.CustomObjectsApi()
+        k8s_batch_api = client.BatchV1Api()
+        k8s_storage_api = client.StorageV1Api()
+        k8s_autoscaling_api = client.AutoscalingV2Api()
+
+        _, active_context = config.list_kube_config_contexts()
+        context_name = active_context.get("name", "unknown")
+        cluster_server = active_context.get("context", {}).get("cluster", "unknown")
+        user = active_context.get("context", {}).get("user", "unknown")
+
+        logger.info(f"Reloaded Kubernetes credentials — context: {context_name}")
+        return {
+            "status": "reloaded",
+            "context": context_name,
+            "cluster": cluster_server,
+            "user": user
+        }
+    except Exception as e:
+        logger.error(f"Failed to reload credentials: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 # Prometheus endpoints configuration (local Tekton components)
 PROMETHEUS_ENDPOINTS = {
     'tekton-operator': 'http://localhost:9092/metrics',
