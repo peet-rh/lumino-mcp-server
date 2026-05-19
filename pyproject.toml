@@ -1,70 +1,27 @@
-[project]
-name = "lumino-mcp-server"
-version = "0.9.3"
-description = "An open source MCP server empowering SREs with intelligent observability, predictive analytics, and AI-driven automation across Kubernetes, OpenShift, and Tekton environments."
-readme = "README.md"
-license = "Apache-2.0"
-requires-python = ">=3.10"
-authors = [
-    {name = "Lumino Team"}
-]
-keywords = ["mcp", "kubernetes", "openshift", "tekton", "monitoring", "ai", "sre", "observability", "pipelines"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-]
-dependencies = [
-    "aiohttp>=3.12.2",
-    "kubernetes>=32.0.1",
-    "mcp[cli]>=1.10.1",
-    "pandas>=2.0.0",
-    "numpy>=1.24.0",
-    "scikit-learn>=1.6.1",
-    "prometheus-client>=0.22.0",
-    "pyyaml>=6.0.2",
-    "requests>=2.31.0",
-    "python-dotenv>=1.1.0",
-    "pydantic>=2.11.5",
-    "uvicorn>=0.30.0",
-    "starlette>=0.30.0",
-    "networkx>=3.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/spre-sre/lumino-mcp-server"
-Repository = "https://github.com/spre-sre/lumino-mcp-server"
-Issues = "https://github.com/spre-sre/lumino-mcp-server/issues"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[project]
+name = "lumino-mcp-server"
+version = "1.0.0"
+description = "MCP server for Kubernetes/OpenShift observability — focused tools for SRE workflows"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.10.0",
+    "kubernetes>=32.0.0",
+    "click>=8.1.0",
+    "pyyaml>=6.0",
+    "cryptography>=42.0.0",
+]
+
+[project.scripts]
+lumino-mcp = "lumino_mcp:main"
+
+[project.urls]
+Repository = "https://github.com/peet-rh/lumino-mcp-server"
+
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
-
-[tool.hatch.build.targets.sdist]
-exclude = [
-    ".mcpregistry_*",
-    ".env",
-    ".env.*",
-    "*.pem",
-    "*.key",
-]
-
-[tool.hatch.build.targets.wheel.force-include]
-# Ensure no secrets are included
-
-# MCP Registry integration
-[tool.mcp]
-name = "io.github.geored/lumino"
-
-[tool.uv]
-dev-dependencies = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-]
+packages = ["src/lumino_mcp"]
