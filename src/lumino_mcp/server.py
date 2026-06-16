@@ -583,3 +583,8 @@ async def get_machine_config_pool_status(
         })
     except Exception as e:
         return json.dumps({"error": f"MCP status check failed: {e}"})
+
+
+# Import tool modules — registration happens at import time via @mcp.tool()
+# This MUST be at the bottom to avoid circular imports (tools import mcp from here)
+from . import tools  # noqa: E402, F401
